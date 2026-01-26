@@ -36,9 +36,8 @@ ENV/
 *~
 .DS_Store
 
-# Jupyter Notebook
+# Jupyter Notebook checkpoints (not the notebooks themselves)
 .ipynb_checkpoints
-*.ipynb
 
 # Data files (common in ML projects)
 *.csv
