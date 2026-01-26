@@ -1,24 +1,39 @@
 import numpy as np
 from collections import OrderedDict
+from .gpu_utils import get_device_manager, get_xp, to_device, to_numpy
 
 
 class NeuralNetwork:
     
-    def __init__(self, name="NeuralNetwork"):
+    def __init__(self, name="NeuralNetwork", device='auto'):
         self.name = name
         self.layers = OrderedDict()
         self.loss_fn = None
         self.training = True
+        self.device_manager = get_device_manager(device=device)
+        self.xp = get_xp(self.device_manager)
     
     def add_layer(self, layer, name=None):
         if name is None:
             name = f"{layer.name}_{len(self.layers)}"
+        # Set device_manager for layer if it supports it
+        if hasattr(layer, 'device_manager'):
+            layer.device_manager = self.device_manager
+            if hasattr(layer, 'xp'):
+                layer.xp = self.xp
         self.layers[name] = layer
     
     def set_loss(self, loss_fn):
         self.loss_fn = loss_fn
+        # Set device_manager for loss function if it supports it
+        if hasattr(loss_fn, 'device_manager'):
+            loss_fn.device_manager = self.device_manager
+            if hasattr(loss_fn, 'xp'):
+                loss_fn.xp = self.xp
     
     def forward(self, input_data):
+        # Ensure input is on correct device
+        input_data = to_device(input_data, self.device_manager)
         output = input_data
         for layer in self.layers.values():
             output = layer.forward(output)
@@ -43,12 +58,33 @@ class NeuralNetwork:
         return loss
     
     def compute_accuracy(self, predictions, targets):
-        if targets.ndim == 2 and targets.shape[1] > 1:
-            target_classes = np.argmax(targets, axis=1)
-            pred_classes = np.argmax(predictions, axis=1)
+        xp = self.xp
+        # Convert to numpy for accuracy computation (argmax and comparison)
+        pred_np = to_numpy(predictions, self.device_manager)
+        targ_np = to_numpy(targets, self.device_manager)
+        
+        if targ_np.ndim == 2 and targ_np.shape[1] > 1:
+            # Multi-class classification
+            target_classes = np.argmax(targ_np, axis=1)
+            pred_classes = np.argmax(pred_np, axis=1)
         else:
-            target_classes = np.argmax(targets, axis=1) if targets.ndim == 2 else targets
-            pred_classes = np.argmax(predictions, axis=1) if predictions.ndim == 2 else (predictions > 0.5).astype(int).flatten()
+            # Binary classification - flatten arrays if they're (N, 1)
+            if targ_np.ndim == 2 and targ_np.shape[1] == 1:
+                # Binary classification with shape (N, 1) - flatten to (N,)
+                target_classes = targ_np.flatten().astype(int)
+            else:
+                # Already 1D
+                target_classes = targ_np.astype(int)
+            
+            if pred_np.ndim == 2 and pred_np.shape[1] == 1:
+                # Binary classification with shape (N, 1) - use threshold
+                pred_classes = (pred_np.flatten() > 0.5).astype(int)
+            elif pred_np.ndim == 2:
+                # Multi-class with shape (N, num_classes)
+                pred_classes = np.argmax(pred_np, axis=1)
+            else:
+                # Already 1D
+                pred_classes = (pred_np > 0.5).astype(int)
         
         accuracy = np.mean(pred_classes == target_classes) * 100
         return accuracy

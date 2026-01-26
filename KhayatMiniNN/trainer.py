@@ -1,5 +1,6 @@
 import numpy as np
 import time
+from .gpu_utils import to_device, to_numpy, get_xp
 
 
 class Trainer:
@@ -16,8 +17,20 @@ class Trainer:
         self.val_accuracies = []
         
         self.layer_optimizers = {}
+        self.device_manager = network.device_manager
+        self.xp = get_xp(self.device_manager)
+        
+        # Set device_manager for optimizer if it supports it
+        if hasattr(optimizer, 'device_manager'):
+            optimizer.device_manager = self.device_manager
+            if hasattr(optimizer, 'xp'):
+                optimizer.xp = self.xp
     
     def train_step(self, X_batch, y_batch):
+        # Move data to device
+        X_batch = to_device(X_batch, self.device_manager)
+        y_batch = to_device(y_batch, self.device_manager)
+        
         predictions = self.network.forward(X_batch)
         loss = self.network.compute_loss(predictions, y_batch)
         accuracy = self.network.compute_accuracy(predictions, y_batch)
@@ -30,19 +43,31 @@ class Trainer:
         
         self._update_params(params, grads)
         
-        return loss, accuracy
+        # Synchronize GPU operations
+        self.device_manager.synchronize()
+        
+        return float(loss), float(accuracy)
     
     def fit(self, X_train, y_train, X_val=None, y_val=None, 
             epochs=10, batch_size=32, verbose=True, val_interval=1):
+        # Move data to device
+        X_train = to_device(X_train, self.device_manager)
+        y_train = to_device(y_train, self.device_manager)
+        if X_val is not None:
+            X_val = to_device(X_val, self.device_manager)
+        if y_val is not None:
+            y_val = to_device(y_val, self.device_manager)
+        
         num_samples = X_train.shape[0]
         num_batches = (num_samples + batch_size - 1) // batch_size
         
         start_time = time.time()
         
         for epoch in range(epochs):
+            # Shuffle on CPU then move to device
             indices = np.random.permutation(num_samples)
-            X_shuffled = X_train[indices]
-            y_shuffled = y_train[indices]
+            X_shuffled = to_device(X_train[indices], self.device_manager)
+            y_shuffled = to_device(y_train[indices], self.device_manager)
             
             epoch_loss = 0.0
             epoch_accuracy = 0.0
@@ -91,12 +116,20 @@ class Trainer:
         }
     
     def evaluate(self, X_test, y_test):
+        # Move data to device
+        X_test = to_device(X_test, self.device_manager)
+        y_test = to_device(y_test, self.device_manager)
+        
         self.network._set_training(False)
         predictions = self.network.forward(X_test)
         loss = self.network.compute_loss(predictions, y_test)
         accuracy = self.network.compute_accuracy(predictions, y_test)
         self.network._set_training(True)
-        return loss, accuracy
+        
+        # Synchronize GPU operations
+        self.device_manager.synchronize()
+        
+        return float(loss), float(accuracy)
     
     def predict(self, X):
         return self.network.predict(X)
@@ -111,20 +144,24 @@ class Trainer:
                     optimizer_type = type(self.optimizer)
                     if optimizer_type.__name__ == 'Adam':
                         self.layer_optimizers[layer_name] = optimizer_type(
-                            learning_rate=self.optimizer.learning_rate
+                            learning_rate=self.optimizer.learning_rate,
+                            device_manager=self.device_manager
                         )
                     elif optimizer_type.__name__ == 'Momentum':
                         self.layer_optimizers[layer_name] = optimizer_type(
                             learning_rate=self.optimizer.learning_rate,
-                            momentum=self.optimizer.momentum
+                            momentum=self.optimizer.momentum,
+                            device_manager=self.device_manager
                         )
                     elif optimizer_type.__name__ == 'Adagrad':
                         self.layer_optimizers[layer_name] = optimizer_type(
-                            learning_rate=self.optimizer.learning_rate
+                            learning_rate=self.optimizer.learning_rate,
+                            device_manager=self.device_manager
                         )
                     else:
                         self.layer_optimizers[layer_name] = optimizer_type(
-                            learning_rate=self.optimizer.learning_rate
+                            learning_rate=self.optimizer.learning_rate,
+                            device_manager=self.device_manager
                         )
                 
                 updated_params = self.layer_optimizers[layer_name].update(layer_params, layer_grads)

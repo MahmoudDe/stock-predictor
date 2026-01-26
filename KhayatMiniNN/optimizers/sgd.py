@@ -1,11 +1,14 @@
 import numpy as np
 from .base import Optimizer
+from ..gpu_utils import get_xp
 
 
 class SGD(Optimizer):
     
-    def __init__(self, learning_rate=0.01, name="SGD"):
+    def __init__(self, learning_rate=0.01, name="SGD", device_manager=None):
         super().__init__(learning_rate, name)
+        self.device_manager = device_manager
+        self.xp = get_xp(device_manager) if device_manager else np
     
     def update(self, params, grads):
         updated_params = {}

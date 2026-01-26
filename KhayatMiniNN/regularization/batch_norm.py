@@ -9,6 +9,7 @@ class BatchNormalization(RegularizationLayer):
         self.num_features = num_features
         self.momentum = momentum
         self.epsilon = epsilon
+        self.training = True  # Ensure training flag is set
         
         self.params = {
             'gamma': np.ones(num_features),
@@ -40,7 +41,14 @@ class BatchNormalization(RegularizationLayer):
             self.cache['mean'] = batch_mean
             self.cache['var'] = batch_var
         else:
-            input_normalized = (input_data - self.running_mean) / np.sqrt(self.running_var + self.epsilon)
+            # Use running statistics during inference
+            if self.running_mean.ndim == 0:
+                running_mean = self.running_mean
+                running_var = self.running_var
+            else:
+                running_mean = self.running_mean.reshape(1, -1) if len(self.running_mean.shape) == 1 else self.running_mean
+                running_var = self.running_var.reshape(1, -1) if len(self.running_var.shape) == 1 else self.running_var
+            input_normalized = (input_data - running_mean) / np.sqrt(running_var + self.epsilon)
         
         gamma = self.params['gamma']
         beta = self.params['beta']
