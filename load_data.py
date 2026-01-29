@@ -1,13 +1,3 @@
-"""
-Data loading and preprocessing script for stock prediction.
-
-This script:
-1. Loads training data (Date, Open, High, Low, Close, Volume, Dividends, Stock Splits, Ticker)
-2. Creates target labels: predict if Close price after 30 trading days will be ↑ (higher) or ↓ (lower)
-3. Handles missing values and data cleaning
-4. Splits data into train/validation/test sets (respecting time series order - no random shuffling)
-"""
-
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -17,27 +7,13 @@ warnings.filterwarnings('ignore')
 
 
 class StockDataLoader:
-    """Load and preprocess stock data for prediction."""
-    
+  
     def __init__(self, data_dir: str = "data", train_file: str = "train.csv"):
-        """
-        Initialize the data loader.
-        
-        Args:
-            data_dir: Directory containing the data files
-            train_file: Name of the training CSV file
-        """
         self.data_dir = Path(data_dir)
         self.train_file = self.data_dir / train_file
-        self.prediction_horizon = 30  # 30 trading days ahead
+        self.prediction_horizon = 30
         
     def load_data(self) -> pd.DataFrame:
-        """
-        Load training data from CSV file.
-        
-        Returns:
-            DataFrame with columns: Date, Open, High, Low, Close, Volume, Dividends, Stock Splits, Ticker
-        """
         print("Loading training data...")
         print(f"Reading from: {self.train_file}")
         
@@ -67,15 +43,6 @@ class StockDataLoader:
         return df
     
     def handle_missing_values(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Handle missing values in the dataset.
-        
-        Args:
-            df: Input DataFrame
-            
-        Returns:
-            DataFrame with missing values handled
-        """
         print("\nHandling missing values...")
         
         initial_rows = len(df)
@@ -174,34 +141,16 @@ class StockDataLoader:
                          train_ratio: float = 0.7, 
                          val_ratio: float = 0.15,
                          test_ratio: float = 0.15) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """
-        Split data into train/validation/test sets respecting time series order.
-        
-        IMPORTANT: No random shuffling - maintains chronological order.
-        
-        Args:
-            df: DataFrame sorted by Ticker and Date
-            train_ratio: Proportion of data for training
-            val_ratio: Proportion of data for validation
-            test_ratio: Proportion of data for testing
-            
-        Returns:
-            Tuple of (train_df, val_df, test_df)
-        """
         print(f"\nSplitting data into train/validation/test sets...")
         print(f"  Ratios: Train={train_ratio:.1%}, Val={val_ratio:.1%}, Test={test_ratio:.1%}")
         
-        # Verify ratios sum to 1
         total_ratio = train_ratio + val_ratio + test_ratio
         if abs(total_ratio - 1.0) > 1e-6:
             raise ValueError(f"Ratios must sum to 1.0, got {total_ratio}")
         
-        # Split by date (chronological order)
-        # Get unique dates sorted
         unique_dates = df['Date'].unique()
         unique_dates = np.sort(unique_dates)
         
-        # Calculate split indices
         n_dates = len(unique_dates)
         train_end_idx = int(n_dates * train_ratio)
         val_end_idx = int(n_dates * (train_ratio + val_ratio))
@@ -236,7 +185,6 @@ class StockDataLoader:
         return train_df, val_df, test_df
     
     def get_feature_columns(self) -> list:
-        """Get list of feature columns (excluding target and metadata)."""
         return ['Open', 'High', 'Low', 'Close', 'Volume', 'Dividends', 'Stock Splits']
     
     def process(self, train_ratio: float = 0.7, 
@@ -257,16 +205,13 @@ class StockDataLoader:
         print("STOCK DATA LOADING AND PREPROCESSING")
         print("=" * 60)
         
-        # Step 1: Load data
+
         df = self.load_data()
         
-        # Step 2: Handle missing values
         df = self.handle_missing_values(df)
         
-        # Step 3: Create target labels
         df = self.create_target_labels(df)
         
-        # Step 4: Split into train/val/test
         train_df, val_df, test_df = self.split_time_series(df, train_ratio, val_ratio, test_ratio)
         
         print("\n" + "=" * 60)
@@ -277,12 +222,11 @@ class StockDataLoader:
             'train': train_df,
             'val': val_df,
             'test': test_df,
-            'full': df  # Also return full dataset for reference
+            'full': df
         }
 
 
 def main():
-    """Main function to run data loading and preprocessing."""
     loader = StockDataLoader()
     
     # Process data
@@ -299,7 +243,7 @@ def main():
         output_dir.mkdir(exist_ok=True)
         
         for split_name, df in datasets.items():
-            if split_name != 'full':  # Don't save full dataset (too large)
+            if split_name != 'full':
                 output_file = output_dir / f"{split_name}.csv"
                 df.to_csv(output_file, index=False)
                 print(f"✓ Saved {split_name} dataset to {output_file}")
