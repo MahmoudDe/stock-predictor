@@ -190,17 +190,6 @@ class StockDataLoader:
     def process(self, train_ratio: float = 0.7, 
                 val_ratio: float = 0.15,
                 test_ratio: float = 0.15) -> Dict[str, pd.DataFrame]:
-        """
-        Complete data processing pipeline.
-        
-        Args:
-            train_ratio: Proportion of data for training
-            val_ratio: Proportion of data for validation
-            test_ratio: Proportion of data for testing
-            
-        Returns:
-            Dictionary with keys: 'train', 'val', 'test', each containing a DataFrame
-        """
         print("=" * 60)
         print("STOCK DATA LOADING AND PREPROCESSING")
         print("=" * 60)
@@ -228,7 +217,6 @@ class StockDataLoader:
 
 def main():
     loader = StockDataLoader()
-    
     # Process data
     datasets = loader.process(
         train_ratio=0.7,
