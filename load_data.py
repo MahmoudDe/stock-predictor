@@ -96,15 +96,6 @@ class StockDataLoader:
         return df
     
     def create_target_labels(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Create target labels: predict if Close price after 30 trading days will be ↑ (higher) or ↓ (lower).
-        
-        Args:
-            df: DataFrame with stock data sorted by Ticker and Date
-            
-        Returns:
-            DataFrame with added 'target' column (1 for ↑, 0 for ↓)
-        """
         print(f"\nCreating target labels (prediction horizon: {self.prediction_horizon} trading days)...")
         
         # Create a copy to avoid modifying original
